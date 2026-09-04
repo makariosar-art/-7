@@ -1,0 +1,373 @@
+# -*- coding: utf-8 -*-
+import pygame
+import sys
+import math
+import random
+
+# =====================================================================
+# РќРђРЎРўР РћР™РљР Р РРќРР¦РРђР›РР—РђР¦РРЇ
+# =====================================================================
+pygame.init()
+pygame.font.init()
+
+# Р Р°Р·РјРµСЂС‹ СЌРєСЂР°РЅР°
+SCREEN_WIDTH = 1024
+SCREEN_HEIGHT = 768
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Minsk Drive: Open World (GTA Clone Alpha)")
+clock = pygame.time.Clock()
+
+# Р¦РІРµС‚Р°
+COLOR_BLACK = (0, 0, 0)
+COLOR_WHITE = (255, 255, 255)
+COLOR_GRAY = (40, 40, 40)
+COLOR_RED = (220, 50, 50)
+COLOR_GREEN = (50, 200, 50)
+COLOR_BLUE = (50, 50, 220)
+COLOR_YELLOW = (240, 240, 50)
+COLOR_MINIMAP_BG = (20, 20, 20, 180)
+
+# РЁСЂРёС„С‚С‹
+try:
+    FONT_MAIN = pygame.font.SysFont("Arial", 24)
+    FONT_BIG = pygame.font.SysFont("Arial", 48)
+    FONT_UI = pygame.font.SysFont("Arial", 18)
+except:
+    FONT_MAIN = pygame.font.Font(None, 24)
+    FONT_BIG = pygame.font.Font(None, 48)
+    FONT_UI = pygame.font.Font(None, 18)
+
+# РЎС‚РµР№С‚С‹ РёРіСЂС‹
+STATE_INTRO = "intro"
+STATE_MENU = "menu"
+STATE_GAME = "game"
+game_state = STATE_INTRO
+
+# РџРµСЂРµРјРµРЅРЅС‹Рµ РёРЅС‚СЂРѕ Рё РјРµРЅСЋ
+intro_timer = 0
+menu_selection = 0
+
+# РЈРїСЂР°РІР»РµРЅРёРµ РґР»СЏ РјРѕР±РёР»СЊРЅС‹С… (Р­РєСЂР°РЅРЅС‹Р№ РґР¶РѕР№СЃС‚РёРє)
+mobile_controls_active = False # РџРµСЂРµРєР»СЋС‡Р°РµС‚СЃСЏ РїСЂРё РєР»РёРєРµ РЅР° СЌРєСЂР°РЅ РјРѕР±РёР»СЊРЅРѕРіРѕ РёРЅС‚РµСЂС„РµР№СЃР°
+joystick_pos = (150, 600)
+joystick_radius = 50
+joystick_knob_pos = list(joystick_pos)
+
+# =====================================================================
+# РР“Р РћР’Р«Р• РћР‘РЄР•РљРўР« Р РњРР  (РњРРќРЎРљ)
+# =====================================================================
+# РњРёСЂ СЂР°Р·РјРµСЂРѕРј 5000С…5000 РїРёРєСЃРµР»РµР№
+WORLD_SIZE = 5000
+
+# РЎРѕР·РґР°РЅРёРµ РґРѕСЂРѕРі РњРёРЅСЃРєР° (РџСЂРѕСЃРїРµРєС‚ РќРµР·Р°РІРёСЃРёРјРѕСЃС‚Рё, РќРµРјРёРіР° Рё С‚.Рґ.)
+roads = [
+    # РџСЂРѕСЃРїРµРєС‚ РќРµР·Р°РІРёСЃРёРјРѕСЃС‚Рё (Р“Р»Р°РІРЅР°СЏ РјР°РіРёСЃС‚СЂР°Р»СЊ РїРѕ С†РµРЅС‚СЂСѓ РіРѕСЂРёР·РѕРЅС‚Р°Р»СЊРЅРѕ)
+    pygame.Rect(0, 2400, WORLD_SIZE, 200),
+    # РЈР»РёС†Р° РќРµРјРёРіР° (Р’РµСЂС‚РёРєР°Р»СЊРЅР°СЏ РІРµС‚РєР°)
+    pygame.Rect(1500, 0, 200, WORLD_SIZE),
+    # Р’С‚РѕСЂРѕРµ РєРѕР»СЊС†Рѕ (Р•С‰Рµ РѕРґРЅР° РІРµСЂС‚РёРєР°Р»СЊРЅР°СЏ СѓР»РёС†Р°)
+    pygame.Rect(3500, 0, 180, WORLD_SIZE),
+    # РџРµСЂРµСѓР»РєРё
+    pygame.Rect(1500, 1000, 2000, 100),
+    pygame.Rect(1500, 3500, 2000, 100),
+]
+
+# Р—РґР°РЅРёСЏ РњРёРЅСЃРєР° (Р’РѕСЂРѕС‚Р° РњРёРЅСЃРєР°, РќР°С†РёРѕРЅР°Р»СЊРЅР°СЏ Р‘РёР±Р»РёРѕС‚РµРєР°, РџР»РѕС‰Р°РґСЊ РџРѕР±РµРґС‹)
+buildings = [
+    {"rect": pygame.Rect(1200, 2100, 250, 250), "name": "Minsk Gates (Р’РѕСЂРѕС‚Р° РњРёРЅСЃРєР°)", "color": (180, 170, 150)},
+    {"rect": pygame.Rect(4000, 2100, 300, 300), "name": "National Library (РќР°С†РёРѕРЅР°Р»СЊРЅР°СЏ Р‘РёР±Р»РёРѕС‚РµРєР°)", "color": (100, 149, 237)},
+    {"rect": pygame.Rect(2500, 2250, 150, 150), "name": "Victory Square (РџР»РѕС‰Р°РґСЊ РџРѕР±РµРґС‹)", "color": (120, 120, 120)},
+    {"rect": pygame.Rect(1700, 1800, 400, 200), "name": "Palace of Republic (Р”РІРѕСЂРµС† Р РµСЃРїСѓР±Р»РёРєРё)", "color": (200, 200, 200)},
+    {"rect": pygame.Rect(1100, 2700, 350, 200), "name": "Minsk Station (Р’РѕРєР·Р°Р»)", "color": (140, 150, 160)},
+]
+
+# Р”РѕР±Р°РІРёРј СЃР»СѓС‡Р°Р№РЅС‹Рµ Р¶РёР»С‹Рµ РєРІР°СЂС‚Р°Р»С‹ РґР»СЏ РјР°СЃСЃРѕРІРєРё
+random.seed(42) # Р¤РёРєСЃРёСЂСѓРµРј РіРµРЅРµСЂР°С†РёСЋ
+for i in range(40):
+    bx = random.randint(100, WORLD_SIZE - 400)
+    by = random.randint(100, WORLD_SIZE - 400)
+    bw = random.randint(150, 300)
+    bh = random.randint(150, 300)
+    new_rect = pygame.Rect(bx, by, bw, bh)
+    
+    # РџСЂРѕРІРµСЂСЏРµРј, С‡С‚РѕР±С‹ РґРѕРјР° РЅРµ СЃС‚СЂРѕРёР»РёСЃСЊ РїСЂСЏРјРѕ РЅР° РіР»Р°РІРЅС‹С… РґРѕСЂРѕРіР°С…
+    overlap = False
+    for r in roads:
+        if r.colliderect(new_rect.inflate(50, 50)):
+            overlap = True
+    for b in buildings:
+        if b["rect"].colliderect(new_rect):
+            overlap = True
+            
+    if not overlap:
+        buildings.append({"rect": new_rect, "name": f"РљРІР°СЂС‚Р°Р» {i+1}", "color": (90, 100, 110)})
+
+# РРіСЂРѕРє (РђРІС‚РѕРјРѕР±РёР»СЊ)
+player_x = 2400
+player_y = 2500
+player_angle = 0
+player_speed = 0
+player_max_speed = 8
+player_turn_speed = 3
+
+# РўСЂР°С„РёРє (Р‘РѕС‚-РјР°С€РёРЅС‹)
+traffic = []
+for i in range(30):
+    # РЎРїР°РІРЅРёРј РЅР° СЃР»СѓС‡Р°Р№РЅРѕР№ РґРѕСЂРѕРіРµ
+    road = random.choice(roads)
+    tx = random.randint(road.left, road.right - 40)
+    ty = random.randint(road.top, road.bottom - 40)
+    traffic.append({
+        "x": tx,
+        "y": ty,
+        "speed": random.choice([3, 4, 5]),
+        "dir": random.choice(["H", "V"]), # Р“РѕСЂРёР·РѕРЅС‚Р°Р»СЊРЅРѕРµ РёР»Рё РІРµСЂС‚РёРєР°Р»СЊРЅРѕРµ РґРІРёР¶РµРЅРёРµ
+        "color": random.choice([(200,50,50), (50,50,200), (200,200,200), (30,30,30)])
+    })
+
+# РћРїС‚РёРјРёР·Р°С†РёСЏ: РљР°Р»Р»РёРЅРі (РћС‚СЂРёСЃРѕРІРєР° С‚РѕР»СЊРєРѕ С‚РѕРіРѕ, С‡С‚Рѕ РІРёРґРёС‚ РєР°РјРµСЂР°)
+def get_visible_objects(camera_rect, obj_list, is_dict=False):
+    visible = []
+    for obj in obj_list:
+        rect = obj["rect"] if is_dict else obj
+        if camera_rect.colliderect(rect):
+            visible.append(obj)
+    return visible
+
+# =====================================================================
+# РР“Р РћР’РћР™ Р¦РРљР›
+# =====================================================================
+running = True
+while running:
+    dt = clock.tick(60) # РЎРўРђР‘РР›Р¬РќР«Р• 60 FPS
+
+    # РћР±СЂР°Р±РѕС‚РєР° СЃРѕР±С‹С‚РёР№ РІРІРѕРґР°
+    events = pygame.get_events() if hasattr(pygame, 'get_events') else pygame.event.get()
+    for event in events:
+        if event.type == pygame.QUIT:
+            running = False
+            
+        # РРЅС‚СЂРѕ РєР»РёРє РґР»СЏ РїСЂРѕРїСѓСЃРєР°
+        if game_state == STATE_INTRO and event.type == pygame.MOUSEBUTTONDOWN:
+            game_state = STATE_MENU
+            
+        # РЈРїСЂР°РІР»РµРЅРёРµ РјРµРЅСЋ
+        elif game_state == STATE_MENU:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    menu_selection = 0
+                elif event.key == pygame.K_DOWN:
+                    menu_selection = 1
+                elif event.key == pygame.K_RETURN:
+                    if menu_selection == 0:
+                        game_state = STATE_GAME
+                    else:
+                        running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = event.pos
+                if 400 <= mx <= 620:
+                    if 350 <= my <= 400:
+                        game_state = STATE_GAME
+                    elif 430 <= my <= 480:
+                        running = False
+
+        # РўР°С‡/РњС‹С€СЊ СѓРїСЂР°РІР»РµРЅРёРµ РґР»СЏ РјРѕР±РёР»СЊРЅС‹С… (РІ РёРіСЂРµ)
+        elif game_state == STATE_GAME:
+            if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEMOTION:
+                if pygame.mouse.get_pressed()[0]:
+                    mx, my = event.pos
+                    # РџСЂРѕРІРµСЂСЏРµРј РєР»РёРє РІ Р·РѕРЅРµ РґР¶РѕР№СЃС‚РёРєР°
+                    dist = math.hypot(mx - joystick_pos[0], my - joystick_pos[1])
+                    if dist < 120: # РђРєС‚РёРІРЅР°СЏ Р·РѕРЅР° С‚Р°С‡Р°
+                        mobile_controls_active = True
+                        angle = math.atan2(my - joystick_pos[1], mx - joystick_pos[0])
+                        # РћРіСЂР°РЅРёС‡РёРІР°РµРј С…РѕРґ СЂСѓС‡РєРё РґР¶РѕР№СЃС‚РёРєР°
+                        limit_dist = min(dist, joystick_radius)
+                        joystick_knob_pos[0] = joystick_pos[0] + math.cos(angle) * limit_dist
+                        joystick_knob_pos[1] = joystick_pos[1] + math.sin(angle) * limit_dist
+                        
+                        # РџРµСЂРµРІРѕРґРёРј РґР¶РѕР№СЃС‚РёРє РІ СѓРїСЂР°РІР»РµРЅРёРµ РёРіСЂРѕРєРѕРј
+                        player_speed = -(limit_dist / joystick_radius) * player_max_speed
+                        player_angle += math.degrees(math.cos(angle)) * 0.05
+            if event.type == pygame.MOUSEBUTTONUP:
+                mobile_controls_active = False
+                joystick_knob_pos = list(joystick_pos)
+
+    # =====================================================================
+    # Р›РћР“РРљРђ РћР‘РќРћР’Р›Р•РќРРЇ РЎРўРђРўРЈРЎРћР’
+    # =====================================================================
+    if game_state == STATE_INTRO:
+        intro_timer += dt
+        if intro_timer > 4000: # 4 СЃРµРєСѓРЅРґС‹ РёРЅС‚СЂРѕ
+            game_state = STATE_MENU
+
+    elif game_state == STATE_GAME:
+        # РЈРїСЂР°РІР»РµРЅРёРµ СЃ РєР»Р°РІРёР°С‚СѓСЂС‹ (РџРљ)
+        keys = pygame.key.get_pressed()
+        if not mobile_controls_active:
+            if keys[pygame.K_UP] or keys[pygame.K_w]:
+                player_speed = min(player_speed + 0.2, player_max_speed)
+            elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+                player_speed = max(player_speed - 0.2, -player_max_speed/2)
+            else:
+                player_speed *= 0.95 # РўСЂРµРЅРёРµ / Р—Р°РјРµРґР»РµРЅРёРµ
+                
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                player_angle += player_turn_speed * (player_speed / player_max_speed)
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                player_angle -= player_turn_speed * (player_speed / player_max_speed)
+
+        # РџРµСЂРµРјРµС‰РµРЅРёРµ РёРіСЂРѕРєР° СЃ СѓС‡РµС‚РѕРј СѓРіР»Р° РїРѕРІРѕСЂРѕС‚Р°
+        rad = math.radians(player_angle)
+        player_x += player_speed * math.sin(rad)
+        player_y += player_speed * math.cos(rad)
+
+        # Р“СЂР°РЅРёС†С‹ РјРёСЂР°
+        player_x = max(100, min(player_x, WORLD_SIZE - 100))
+        player_y = max(100, min(player_y, WORLD_SIZE - 100))
+
+        # РћР±РЅРѕРІР»РµРЅРёРµ РёСЃРєСѓСЃСЃС‚РІРµРЅРЅРѕРіРѕ РёРЅС‚РµР»Р»РµРєС‚Р° С‚СЂР°С„РёРєР° (РР)
+        for car in traffic:
+            if car["dir"] == "H":
+                car["x"] += car["speed"]
+                if car["x"] > WORLD_SIZE: car["x"] = 0
+            else:
+                car["y"] += car["speed"]
+                if car["y"] > WORLD_SIZE: car["y"] = 0
+
+    # =====================================================================
+    # РЎРРЎРўР•РњРђ РћРўР РРЎРћР’РљР (Р Р•РќР”Р•Р РРќР“ Р РћРџРўРРњРР—РђР¦РРЇ)
+    # =====================================================================
+    screen.fill(COLOR_BLACK)
+
+    if game_state == STATE_INTRO:
+        # Р­РєСЂР°РЅ Р—Р°СЃС‚Р°РІРєРё / РРЅС‚СЂРѕ
+        txt_logo = FONT_BIG.render("WARP STUDIOS", True, COLOR_RED)
+        txt_present = FONT_MAIN.render("presents a new open-world experience...", True, COLOR_WHITE)
+        txt_skip = FONT_UI.render("Click anywhere to skip", True, COLOR_GRAY)
+        
+        screen.blit(txt_logo, (SCREEN_WIDTH//2 - txt_logo.get_width()//2, 300))
+        screen.blit(txt_present, (SCREEN_WIDTH//2 - txt_present.get_width()//2, 400))
+        screen.blit(txt_skip, (SCREEN_WIDTH//2 - txt_skip.get_width()//2, 700))
+
+    elif game_state == STATE_MENU:
+        # Р“Р»Р°РІРЅРѕРµ РјРµРЅСЋ РёРіСЂС‹
+        txt_title = FONT_BIG.render("MINSK DRIVE: OPEN WORLD", True, COLOR_YELLOW)
+        screen.blit(txt_title, (SCREEN_WIDTH//2 - txt_title.get_width()//2, 150))
+        
+        btn_play_color = COLOR_GREEN if menu_selection == 0 else COLOR_WHITE
+        btn_exit_color = COLOR_GREEN if menu_selection == 1 else COLOR_WHITE
+        
+        txt_play = FONT_BIG.render("PLAY GAME", True, btn_play_color)
+        txt_exit = FONT_BIG.render("EXIT TO DESKTOP", True, btn_exit_color)
+        
+        screen.blit(txt_play, (SCREEN_WIDTH//2 - txt_play.get_width()//2, 350))
+        screen.blit(txt_exit, (SCREEN_WIDTH//2 - txt_exit.get_width()//2, 450))
+        
+        txt_hint = FONT_UI.render("Use UP/DOWN arrows & ENTER, or click with Mouse", True, COLOR_GRAY)
+        screen.blit(txt_hint, (SCREEN_WIDTH//2 - txt_hint.get_width()//2, 650))
+
+    elif game_state == STATE_GAME:
+        # РљР°РјРµСЂР° С†РµРЅС‚СЂРёСЂСѓРµС‚СЃСЏ РЅР° РёРіСЂРѕРєРµ
+        cam_x = player_x - SCREEN_WIDTH // 2
+        cam_y = player_y - SCREEN_HEIGHT // 2
+        camera_rect = pygame.Rect(cam_x, cam_y, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+        # РћРџРўРРњРР—РђР¦РРЇ: РљР°Р»Р»РёРЅРі РґРѕСЂРѕРі Рё Р·РґР°РЅРёР№ (СЂРёСЃСѓРµРј С‚РѕР»СЊРєРѕ РІРёРґРёРјРѕРµ РЅР° СЌРєСЂР°РЅРµ)
+        visible_roads = get_visible_objects(camera_rect, roads)
+        visible_buildings = get_visible_objects(camera_rect, buildings, is_dict=True)
+
+        # 1. Р РёСЃСѓРµРј С‚СЂР°РІСѓ (Р·Р°РґРЅРёР№ С„РѕРЅ РіРѕСЂРѕРґР°)
+        # Р”Р»СЏ СЃРёРјСѓР»СЏС†РёРё Р±РµСЃРєРѕРЅРµС‡РЅРѕР№ Р·РµРјР»Рё Р·Р°Р»СЊРµРј СЌРєСЂР°РЅ Р±Р°Р·РѕРІС‹Рј С‚РµРјРЅРѕ-Р·РµР»РµРЅС‹Рј С†РІРµС‚РѕРј РіРѕСЂРѕРґР°
+        screen.fill((34, 139, 34))
+
+        # 2. РћС‚СЂРёСЃРѕРІРєР° РґРѕСЂРѕРі
+        for road in visible_roads:
+            draw_rect = road.move(-cam_x, -cam_y)
+            pygame.draw.rect(screen, COLOR_GRAY, draw_rect)
+            # Р Р°Р·РјРµС‚РєР° РґРѕСЂРѕРіРё (РїСѓРЅРєС‚РёСЂ РїРѕ С†РµРЅС‚СЂСѓ)
+            if road.width > road.height: # Р“РѕСЂРёР·РѕРЅС‚Р°Р»СЊРЅР°СЏ РґРѕСЂРѕРіР°
+                for rx in range(road.left, road.right, 40):
+                    if camera_rect.collidepoint(rx, road.centery):
+                        pygame.draw.line(screen, COLOR_WHITE, (rx - cam_x, road.centery - cam_y), (rx + 20 - cam_x, road.centery - cam_y), 2)
+            else: # Р’РµСЂС‚РёРєР°Р»СЊРЅР°СЏ РґРѕСЂРѕРіР°
+                for ry in range(road.top, road.bottom, 40):
+                    if camera_rect.collidepoint(road.centerx, ry):
+                        pygame.draw.line(screen, COLOR_WHITE, (road.centerx - cam_x, ry - cam_y), (road.centerx - cam_x, ry + 20 - cam_y), 2)
+
+        # 3. РћС‚СЂРёСЃРѕРІРєР° Р·РґР°РЅРёР№ РњРёРЅСЃРєР°
+        for b in visible_buildings:
+            draw_rect = b["rect"].move(-cam_x, -cam_y)
+            pygame.draw.rect(screen, b["color"], draw_rect)
+            pygame.draw.rect(screen, COLOR_BLACK, draw_rect, 2) # РљРѕРЅС‚СѓСЂ
+            # РќР°Р·РІР°РЅРёРµ РґРѕСЃС‚РѕРїСЂРёРјРµС‡Р°С‚РµР»СЊРЅРѕСЃС‚Рё
+            txt_name = FONT_UI.render(b["name"], True, COLOR_WHITE)
+            screen.blit(txt_name, (draw_rect.x + 5, draw_rect.y + 5))
+
+        # 4. РћС‚СЂРёСЃРѕРІРєР° С‚СЂР°С„РёРєР° (РјР°С€РёРЅ РР)
+        for car in traffic:
+            if camera_rect.collidepoint(car["x"], car["y"]):
+                car_rect = pygame.Rect(car["x"] - cam_x, car["y"] - cam_y, 30, 15 if car["dir"] == "H" else 30)
+                pygame.draw.rect(screen, car["color"], car_rect)
+
+        # 5. РћС‚СЂРёСЃРѕРІРєР° РёРіСЂРѕРєР° (РђРІС‚РѕРјРѕР±РёР»СЊ СЃ СЂР°Р·РІРѕСЂРѕС‚РѕРј)
+        # РЎРѕР·РґР°РµРј РїРѕРІРµСЂС…РЅРѕСЃС‚СЊ РґР»СЏ Р°РІС‚Рѕ, С‡С‚РѕР±С‹ РїСЂР°РІРёР»СЊРЅРѕ РІСЂР°С‰Р°С‚СЊ
+        player_surface = pygame.Surface((40, 20), pygame.SRCALPHA)
+        player_surface.fill(COLOR_YELLOW)
+        # Р¤Р°СЂС‹
+        pygame.draw.rect(player_surface, (255, 255, 200), (35, 0, 5, 5))
+        pygame.draw.rect(player_surface, (255, 255, 200), (35, 15, 5, 5))
+        
+        rotated_player = pygame.transform.rotate(player_surface, player_angle)
+        player_draw_rect = rotated_player.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        screen.blit(rotated_player, player_draw_rect)
+
+        # =====================================================================
+        # РРќРўР•Р Р¤Р•Р™РЎ (UI) Р РњРРќРРљРђР РўРђ
+        # =====================================================================
+        # РџР°РЅРµР»СЊ РїСЂРёР±РѕСЂРѕРІ
+        txt_speed = FONT_MAIN.render(f"Speed: {int(abs(player_speed) * 20)} km/h", True, COLOR_WHITE)
+        screen.blit(txt_speed, (20, 20))
+        
+        txt_loc = FONT_UI.render(f"Minsk Position: X:{int(player_x)} Y:{int(player_y)}", True, COLOR_YELLOW)
+        screen.blit(txt_loc, (20, 50))
+
+        # РћС‚СЂРёСЃРѕРІРєР° РјРѕР±РёР»СЊРЅРѕРіРѕ РґР¶РѕР№СЃС‚РёРєР°, РµСЃР»Рё РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РјС‹С€СЊ/С‚Р°С‡ РІ Р»РµРІРѕРј СѓРіР»Сѓ
+        pygame.draw.circle(screen, (100, 100, 100, 150), joystick_pos, joystick_radius, 4)
+        pygame.draw.circle(screen, COLOR_RED, (int(joystick_knob_pos[0]), int(joystick_knob_pos[1])), 15)
+
+        # РњРРќР-РљРђР РўРђ (Р’ РїСЂР°РІРѕРј РІРµСЂС…РЅРµРј СѓРіР»Сѓ)
+        minimap_size = 150
+        minimap_x = SCREEN_WIDTH - minimap_size - 20
+        minimap_y = 20
+        
+        # Р¤РѕРЅ РјРёРЅРёРєР°СЂС‚С‹
+        minimap_surf = pygame.Surface((minimap_size, minimap_size), pygame.SRCALPHA)
+        minimap_surf.fill((0, 0, 0, 200))
+        
+        # РњР°СЃС€С‚Р°Р± РјРёРЅРёРєР°СЂС‚С‹ (РІРµСЃСЊ РјРёСЂ 5000 РІС‚РёСЃРєРёРІР°РµРј РІ 150 РїРёРєСЃРµР»РµР№)
+        scale = minimap_size / WORLD_SIZE
+        
+        # Р РёСЃСѓРµРј РґРѕСЂРѕРіРё РЅР° РјРёРЅРёРєР°СЂС‚Рµ
+        for road in roads:
+            mx_road = pygame.Rect(road.x * scale, road.y * scale, road.width * scale, road.height * scale)
+            pygame.draw.rect(minimap_surf, (80, 80, 80), mx_road)
+            
+        # Р РёСЃСѓРµРј Р·РґР°РЅРёСЏ РЅР° РјРёРЅРёРєР°СЂС‚Рµ
+        for b in buildings:
+            mx_b = pygame.Rect(b["rect"].x * scale, b["rect"].y * scale, b["rect"].width * scale, b["rect"].height * scale)
+            pygame.draw.rect(minimap_surf, (100, 100, 255), mx_b)
+
+        # Р РёСЃСѓРµРј РёРіСЂРѕРєР° РЅР° РјРёРЅРёРєР°СЂС‚Рµ
+        px_m = player_x * scale
+        py_m = player_y * scale
+        pygame.draw.circle(minimap_surf, COLOR_YELLOW, (int(px_m), int(py_m)), 4)
+        
+        # Р’С‹РІРѕРґ РјРёРЅРёРєР°СЂС‚С‹ РЅР° СЌРєСЂР°РЅ Рё РѕР±РІРѕРґРєР° СЂР°РјРєРѕР№
+        screen.blit(minimap_surf, (minimap_x, minimap_y))
+        pygame.draw.rect(screen, COLOR_WHITE, (minimap_x, minimap_y, minimap_size, minimap_size), 2)
+
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit()
